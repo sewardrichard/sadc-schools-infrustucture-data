@@ -13,7 +13,10 @@ load_dotenv()
 
 # --- Constants and Configuration ---
 SADC_COUNTRIES_ISO3 = ["ZAF", "ZWE", "BWA", "SWZ", "LSO", "MOZ", "NAM"]
-BASE_URL = "https://uni-ooi-giga-maps-service-dev.azurewebsites.net/api/v1"
+BASE_URL = os.getenv(
+    "GIGA_MAPS_BASE_URL",
+    "https://uni-ooi-giga-maps-service.azurewebsites.net/api/v1",
+)
 MAX_PAGE_SIZE = 100  # API enforces a maximum of 100 items per page
 
 # --- API Client Functions ---
