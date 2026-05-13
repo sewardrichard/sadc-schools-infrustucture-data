@@ -1,6 +1,7 @@
 
 import argparse
 import os
+import sys
 import pandas as pd
 import requests
 from typing import List, Dict, Optional
@@ -10,8 +11,47 @@ from tqdm import tqdm
 # --- Constants and Configuration ---
 SADC_COUNTRIES_ISO3 = ["ZAF", "ZWE", "BWA", "SWZ", "LSO", "MOZ", "NAM"]
 BASE_URL = "https://uni-ooi-giga-maps-service-dev.azurewebsites.net/api/v1"
+MAX_PAGE_SIZE = 100  # API enforces a maximum of 100 items per page
 
 # --- API Client Functions ---
+
+def validate_api_key(api_key: str, endpoint_label: str) -> bool:
+    """
+    Validates the API key by making a lightweight test request.
+    Returns True if the key is valid, False otherwise.
+    """
+    url = f"{BASE_URL}/schools_location/country/ZAF"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json"
+    }
+    params = {"page": 1, "size": 1}
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=15)
+        if response.status_code == 401:
+            error_body = ""
+            try:
+                error_body = response.json().get("message", response.text)
+            except Exception:
+                error_body = response.text
+            print(f"\n  Authentication failed for {endpoint_label}: {error_body}")
+            print("  Please verify that:")
+            print("    1. Your API key (Bearer token) is correct and has not expired.")
+            print("    2. The key was copied in full without extra spaces or missing characters.")
+            print("    3. The key is a valid JWT issued by the GigaMaps API portal.")
+            return False
+        response.raise_for_status()
+        return True
+    except requests.exceptions.HTTPError:
+        return False
+    except requests.exceptions.ConnectionError:
+        print(f"\n  Could not connect to the GigaMaps API at {BASE_URL}.")
+        print("  Please check your internet connection and try again.")
+        return False
+    except Exception as e:
+        print(f"\n  Unexpected error during API key validation: {e}")
+        return False
+
 
 def fetch_school_locations(country_code: str, api_key: str) -> List[Dict]:
     """
@@ -26,13 +66,16 @@ def fetch_school_locations(country_code: str, api_key: str) -> List[Dict]:
     
     all_data = []
     page = 1
-    size = 1000
+    size = MAX_PAGE_SIZE
     
     with tqdm(desc=f"  Fetching locations for {country_code}", unit="page") as pbar:
         while True:
             params = {"page": page, "size": size}
             try:
                 response = requests.get(url, headers=headers, params=params, timeout=30)
+                if response.status_code == 401:
+                    print(f"\n  Authentication failed for {country_code}. Check your API key.")
+                    break
                 response.raise_for_status()
                 
                 data = response.json()
@@ -48,6 +91,9 @@ def fetch_school_locations(country_code: str, api_key: str) -> List[Dict]:
                     break
                 page += 1
                 time.sleep(0.2)
+            except requests.exceptions.HTTPError as e:
+                print(f"\n  HTTP error on page {page} for {country_code}: {e}")
+                break
             except Exception as e:
                 print(f"\n  Error on page {page} for {country_code}: {e}")
                 break
@@ -57,9 +103,9 @@ def fetch_school_locations(country_code: str, api_key: str) -> List[Dict]:
 def fetch_school_profiles(country_code: str, api_key: str) -> List[Dict]:
     """
     Fetches school profile data for a given country.
-    Endpoint: /schools_profile
+    Endpoint: /schools_profile/
     """
-    url = f"{BASE_URL}/schools_profile"
+    url = f"{BASE_URL}/schools_profile/"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json"
@@ -67,7 +113,7 @@ def fetch_school_profiles(country_code: str, api_key: str) -> List[Dict]:
     
     all_data = []
     page = 1
-    size = 1000
+    size = MAX_PAGE_SIZE
     
     with tqdm(desc=f"  Fetching profiles for {country_code}", unit="page") as pbar:
         while True:
@@ -78,6 +124,9 @@ def fetch_school_profiles(country_code: str, api_key: str) -> List[Dict]:
             }
             try:
                 response = requests.get(url, headers=headers, params=params, timeout=30)
+                if response.status_code == 401:
+                    print(f"\n  Authentication failed for {country_code}. Check your API key.")
+                    break
                 response.raise_for_status()
                 
                 data = response.json()
@@ -93,6 +142,9 @@ def fetch_school_profiles(country_code: str, api_key: str) -> List[Dict]:
                     break
                 page += 1
                 time.sleep(0.2)
+            except requests.exceptions.HTTPError as e:
+                print(f"\n  HTTP error on page {page} for {country_code}: {e}")
+                break
             except Exception as e:
                 print(f"\n  Error on page {page} for {country_code}: {e}")
                 break
@@ -125,7 +177,13 @@ def main():
             print("Location API Key is required. Exiting.")
             return
 
-    print(f"Fetching school locations for SADC countries: {', '.join(SADC_COUNTRIES_ISO3)}")
+    print("Validating Location API key...")
+    if not validate_api_key(location_api_key, "School Location API"):
+        print("\nFailed to authenticate with the GigaMaps Location API. Exiting.")
+        return
+    print("  API key is valid!")
+
+    print(f"\nFetching school locations for SADC countries: {', '.join(SADC_COUNTRIES_ISO3)}")
     for country_code in SADC_COUNTRIES_ISO3:
         print(f"\nProcessing {country_code}...")
         try:
@@ -159,7 +217,13 @@ def main():
                 print("Profile API Key is required for Step 2. Exiting.")
                 return
 
-        print(f"Fetching school profiles for SADC countries: {', '.join(SADC_COUNTRIES_ISO3)}")
+        print("Validating Profile API key...")
+        if not validate_api_key(profile_api_key, "School Profile API"):
+            print("\nFailed to authenticate with the GigaMaps Profile API. Exiting.")
+            return
+        print("  API key is valid!")
+
+        print(f"\nFetching school profiles for SADC countries: {', '.join(SADC_COUNTRIES_ISO3)}")
         for country_code in SADC_COUNTRIES_ISO3:
             print(f"\nProcessing {country_code}...")
             try:
