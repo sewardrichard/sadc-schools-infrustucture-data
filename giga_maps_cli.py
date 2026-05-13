@@ -1,4 +1,3 @@
-
 import argparse
 import os
 import sys
@@ -7,6 +6,10 @@ import requests
 from typing import List, Dict, Optional
 import time
 from tqdm import tqdm
+from dotenv import load_dotenv
+
+# --- Load environment variables from .env file ---
+load_dotenv()
 
 # --- Constants and Configuration ---
 SADC_COUNTRIES_ISO3 = ["ZAF", "ZWE", "BWA", "SWZ", "LSO", "MOZ", "NAM"]
